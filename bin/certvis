@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+require_relative '../lib/certvis'
+
+root = File.expand_path('..', __dir__)
+options = {
+  sites_file: File.join(root, 'sites.lst'),
+  output: File.join(root, 'public', 'certs.json'),
+  threads: 2,
+  timeout: 10,
+  retries: 3,
+  backoff: 2,
+  verbose: false
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: certvis [options]\n\n" \
+                "Checks TLS certificate expiry for every site in sites.lst and writes\n" \
+                "the results to a JSON file for the dashboard in public/index.html.\n\n" \
+                "Designed to be run directly or from cron on whatever schedule you like:\n" \
+                "  */15 * * * * cd /path/to/certvis && bin/certvis >> certvis.log 2>&1\n\n"
+
+  opts.on('-f', '--sites-file PATH', 'Path to sites list (default: sites.lst)') { |v| options[:sites_file] = v }
+  opts.on('-o', '--output PATH', 'Path to write JSON output (default: public/certs.json)') { |v| options[:output] = v }
+  opts.on('-t', '--threads N', Integer, 'Number of checker threads (default: 2)') { |v| options[:threads] = v }
+  opts.on('--timeout N', Integer, 'Per-connection timeout in seconds (default: 10)') { |v| options[:timeout] = v }
+  opts.on('--retries N', Integer, 'Retry attempts per site on failure (default: 3)') { |v| options[:retries] = v }
+  opts.on('--backoff N', Integer, 'Base backoff seconds; doubles each retry (default: 2)') { |v| options[:backoff] = v }
+  opts.on('-v', '--verbose', 'Print progress and a summary to stderr') { options[:verbose] = true }
+  opts.on('-h', '--help', 'Show this help') do
+    puts opts
+    exit
+  end
+end.parse!
+
+entries = Certvis::SiteList.load(options[:sites_file])
+if entries.empty?
+  warn "No sites found in #{options[:sites_file]}"
+  exit 1
+end
+
+warn "Checking #{entries.size} site(s) with #{options[:threads]} thread(s)..." if options[:verbose]
+
+checker = Certvis::Checker.new(timeout: options[:timeout], retries: options[:retries], backoff: options[:backoff])
+runner = Certvis::Runner.new(checker: checker, threads: options[:threads])
+results = runner.run(entries)
+
+Certvis::JsonWriter.write(options[:output], results)
+
+if options[:verbose]
+  failed = results.count { |r| !r.reachable }
+  warn "Done: #{results.size - failed}/#{results.size} reachable. Wrote #{options[:output]}"
+end

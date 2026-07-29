@@ -1,0 +1,19 @@
+# certvis sites list
+#
+# One site per line: "hostname" or "hostname:port" (port defaults to 443).
+# Blank lines and lines starting with # are ignored; trailing "# ..." is
+# stripped from a line too.
+
+github.com
+google.com
+cloudflare.com
+
+# badssl.com hosts edge cases handy for exercising certvis itself.
+# Uncomment any of these to see the corresponding status on the dashboard:
+#
+# expired.badssl.com          -> expired cert (dark red)
+# wrong.host.badssl.com       -> valid cert, wrong hostname
+# self-signed.badssl.com      -> untrusted chain
+# untrusted-root.badssl.com   -> untrusted chain
+# revoked.badssl.com          -> revoked (still parses fine here)
+# this-hostname-does-not-exist.example.invalid  -> unreachable (black bar)

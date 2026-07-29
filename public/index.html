@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>certvis</title>
+<style>
+  :root {
+    --bg-a: #030105;
+    --bg-b: #170a29;
+    --bg-c: #2b0f4f;
+    --surface: rgba(255, 255, 255, 0.035);
+    --surface-border: rgba(255, 255, 255, 0.09);
+    --ink: #ece7f5;
+    --ink-dim: #9a90b3;
+    --ink-faint: #6a6182;
+    --track: rgba(255, 255, 255, 0.07);
+
+    --good: #4ade80;
+    --warn: #facc15;
+    --danger: #fb7185;
+    --expired: #7a1128;
+    --unreachable: #050505;
+
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg-a);
+  }
+
+  body {
+    font-family: var(--font-mono);
+    color: var(--ink);
+    background:
+      repeating-linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.012) 0px,
+        rgba(255, 255, 255, 0.012) 1px,
+        transparent 1px,
+        transparent 34px
+      ),
+      linear-gradient(135deg, var(--bg-a) 0%, var(--bg-b) 55%, var(--bg-c) 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    padding: clamp(20px, 4vw, 56px);
+  }
+
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-bottom: 22px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--surface-border);
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    letter-spacing: 0.02em;
+    margin: 0;
+    font-weight: 700;
+  }
+
+  h1 .prompt {
+    color: var(--ink-faint);
+    font-weight: 400;
+  }
+
+  .tagline {
+    margin: 6px 0 0;
+    color: var(--ink-dim);
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+  }
+
+  .status-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: var(--ink-dim);
+  }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #reload {
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  #reload:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.2); }
+  #reload:active { transform: translateY(1px); }
+  #reload.spinning .spin-icon { display: inline-block; animation: spin 0.7s linear infinite; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  section.group { margin-bottom: 30px; }
+
+  .group-label {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .group-label .count {
+    color: var(--ink-dim);
+    font-weight: 600;
+  }
+
+  .site {
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+  }
+
+  .site-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 9px;
+  }
+
+  .site-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+
+  .site-name .badge {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--warn);
+    border: 1px solid rgba(250, 204, 21, 0.4);
+    border-radius: 4px;
+    padding: 1px 5px;
+    vertical-align: middle;
+  }
+
+  .site-status {
+    font-size: 0.76rem;
+    color: var(--ink-dim);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    position: relative;
+    height: 10px;
+    border-radius: 5px;
+    background: var(--track);
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    height: 100%;
+    border-radius: 5px;
+    transition: width 0.4s ease;
+  }
+
+  .bar-fill.pulse::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 10px;
+    background: inherit;
+    filter: brightness(1.6);
+    box-shadow: 0 0 10px 1px currentColor;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar-fill.pulse::after { animation: none; opacity: 0.85; }
+    #reload.spinning .spin-icon { animation: none; }
+    .bar-fill { transition: none; }
+  }
+
+  .empty-state, .error-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--ink-dim);
+    border: 1px dashed var(--surface-border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  footer {
+    margin-top: 30px;
+    color: var(--ink-faint);
+    font-size: 0.7rem;
+    text-align: center;
+  }
+
+  a { color: var(--ink-dim); }
+
+  @media (max-width: 520px) {
+    .status-bar { align-items: flex-start; }
+    header { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1><span class="prompt">$ </span>certvis</h1>
+      <p class="tagline">TLS certificate expiry monitor</p>
+    </div>
+    <div class="status-bar">
+      <div class="status-row">
+        <span id="last-updated">—</span>
+        <button id="reload" type="button" aria-label="Reload now">
+          <span class="spin-icon" aria-hidden="true">⟳</span> reload
+        </button>
+      </div>
+      <span id="next-refresh"></span>
+    </div>
+  </header>
+
+  <div id="content">
+    <div class="empty-state">Waiting for the first scan…</div>
+  </div>
+
+  <footer>data refreshes automatically every 15 minutes</footer>
+</main>
+
+<script>
+(() => {
+  const DATA_URL = 'certs.json';
+  const POLL_MS = 15 * 60 * 1000;
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+  const DANGER_START = 4 * WEEK;  // green -> yellow begins
+  const DANGER_MID = 3 * WEEK;    // pure yellow
+  const DANGER_END = 2 * WEEK;    // yellow -> light red ends; solid light red from here to 0
+
+  const content = document.getElementById('content');
+  const lastUpdatedEl = document.getElementById('last-updated');
+  const nextRefreshEl = document.getElementById('next-refresh');
+  const reloadBtn = document.getElementById('reload');
+
+  let nextPollAt = 0;
+  let pollTimer = null;
+  let countdownTimer = null;
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function lerpColor(hexA, hexB, t) {
+    const a = hexToRgb(hexA), b = hexToRgb(hexB);
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  }
+
+  // Color reflects urgency: green while comfortable, blending through
+  // yellow toward light red as the 4-week mark approaches, solid light red
+  // for the final two weeks, dark red once actually expired.
+  function colorForRemaining(remainingMs) {
+    if (remainingMs <= 0) return 'var(--expired)';
+    if (remainingMs >= DANGER_START) return 'var(--good)';
+    if (remainingMs <= DANGER_END) return 'var(--danger)';
+    if (remainingMs > DANGER_MID) {
+      const t = (DANGER_START - remainingMs) / (DANGER_START - DANGER_MID);
+      return lerpColor('#4ade80', '#facc15', t);
+    }
+    const t = (DANGER_MID - remainingMs) / (DANGER_MID - DANGER_END);
+    return lerpColor('#facc15', '#fb7185', t);
+  }
+
+  function fmtDuration(ms) {
+    const days = Math.floor(Math.abs(ms) / (24 * 60 * 60 * 1000));
+    if (days >= 1) return `${days}d`;
+    const hours = Math.max(1, Math.floor(Math.abs(ms) / (60 * 60 * 1000)));
+    return `${hours}h`;
+  }
+
+  function classify(site, now) {
+    if (!site.reachable || !site.not_after) {
+      return { rank: 2, status: 'unreachable' };
+    }
+    const notAfter = new Date(site.not_after).getTime();
+    const remaining = notAfter - now;
+    if (remaining <= 0) return { rank: 0, status: 'expired', remaining };
+    if (remaining <= DANGER_START) return { rank: 1, status: 'danger', remaining };
+    return { rank: 2, status: 'ok', remaining };
+  }
+
+  function buildBar(site, info, now) {
+    const wrap = document.createElement('div');
+    wrap.className = 'site';
+
+    const row = document.createElement('div');
+    row.className = 'site-row';
+
+    const name = document.createElement('span');
+    name.className = 'site-name';
+    name.textContent = site.name;
+
+    if (site.reachable && (site.hostname_match === false || site.trusted === false)) {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = site.hostname_match === false ? 'WRONG HOST' : 'UNTRUSTED';
+      badge.title = site.hostname_match === false
+        ? 'Certificate does not cover this hostname'
+        : 'Certificate chain is not trusted by the system CA store';
+      name.appendChild(badge);
+    }
+
+    const status = document.createElement('span');
+    status.className = 'site-status';
+
+    const track = document.createElement('div');
+    track.className = 'bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'bar-fill';
+
+    if (info.status === 'unreachable') {
+      status.textContent = 'UNREACHABLE';
+      status.title = site.error || '';
+      fill.style.width = '100%';
+      fill.style.background = 'var(--unreachable)';
+      fill.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,0.12)';
+      fill.classList.add('pulse');
+      fill.style.color = 'var(--ink-faint)';
+    } else if (info.status === 'expired') {
+      status.textContent = `EXPIRED ${fmtDuration(info.remaining)} ago`;
+      fill.style.width = '100%';
+      fill.style.background = 'var(--expired)';
+      fill.classList.add('pulse');
+      fill.style.color = 'var(--expired)';
+    } else {
+      const notBefore = new Date(site.not_before).getTime();
+      const notAfter = new Date(site.not_after).getTime();
+      const pct = Math.min(100, Math.max(0, ((now - notBefore) / (notAfter - notBefore)) * 100));
+      fill.style.width = `${pct}%`;
+      const color = colorForRemaining(info.remaining);
+      fill.style.background = color;
+      fill.style.color = color;
+      status.textContent = `${fmtDuration(info.remaining)} left`;
+      if (info.status === 'danger') fill.classList.add('pulse');
+    }
+
+    row.appendChild(name);
+    row.appendChild(status);
+    track.appendChild(fill);
+    wrap.appendChild(row);
+    wrap.appendChild(track);
+    return wrap;
+  }
+
+  function render(data) {
+    const now = Date.now();
+    const sites = (data.sites || []).map(site => ({ site, info: classify(site, now) }));
+
+    sites.sort((a, b) => {
+      if (a.info.rank !== b.info.rank) return a.info.rank - b.info.rank;
+      return a.site.name.localeCompare(b.site.name, undefined, { sensitivity: 'base' });
+    });
+
+    content.innerHTML = '';
+
+    if (sites.length === 0) {
+      content.innerHTML = '<div class="empty-state">No sites configured. Add hosts to sites.lst and run bin/certvis.</div>';
+      return;
+    }
+
+    const groups = [
+      { key: 0, label: 'Expired' },
+      { key: 1, label: 'Expiring soon' },
+      { key: 2, label: 'Other' }
+    ];
+
+    for (const group of groups) {
+      const members = sites.filter(s => s.info.rank === group.key);
+      if (members.length === 0) continue;
+
+      const section = document.createElement('section');
+      section.className = 'group';
+
+      const label = document.createElement('div');
+      label.className = 'group-label';
+      label.innerHTML = `${group.label} <span class="count">${members.length}</span>`;
+      section.appendChild(label);
+
+      for (const { site, info } of members) {
+        section.appendChild(buildBar(site, info, now));
+      }
+      content.appendChild(section);
+    }
+
+    if (data.generated_at) {
+      const genAt = new Date(data.generated_at);
+      lastUpdatedEl.textContent = `scanned ${genAt.toLocaleTimeString()}`;
+      lastUpdatedEl.title = genAt.toString();
+    }
+  }
+
+  async function load(userTriggered) {
+    if (userTriggered) reloadBtn.classList.add('spinning');
+    try {
+      const res = await fetch(`${DATA_URL}?_=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      render(data);
+    } catch (err) {
+      content.innerHTML = `<div class="error-state">Couldn't load ${DATA_URL} — has bin/certvis run yet?<br>(${err.message})</div>`;
+    } finally {
+      if (userTriggered) reloadBtn.classList.remove('spinning');
+      schedulePoll();
+    }
+  }
+
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    clearInterval(countdownTimer);
+    nextPollAt = Date.now() + POLL_MS;
+    pollTimer = setTimeout(() => load(false), POLL_MS);
+    countdownTimer = setInterval(updateCountdown, 1000);
+    updateCountdown();
+  }
+
+  function updateCountdown() {
+    const remaining = Math.max(0, nextPollAt - Date.now());
+    const mins = String(Math.floor(remaining / 60000)).padStart(2, '0');
+    const secs = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
+    nextRefreshEl.textContent = `next refresh in ${mins}:${secs}`;
+  }
+
+  reloadBtn.addEventListener('click', () => load(true));
+  load(false);
+})();
+</script>
+</body>
+</html>
