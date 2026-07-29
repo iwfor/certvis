@@ -67,6 +67,35 @@ RSpec.describe 'bin/certvis' do
     end
   end
 
+  it 'lists problem sites under -v (self-signed, wrong host, unreachable)' do
+    good_server = TlsTestServer.new(common_name: 'localhost')
+    mismatched_server = TlsTestServer.new(common_name: 'other.example')
+    tcp = TCPServer.new('127.0.0.1', 0)
+    dead_port = tcp.addr[1]
+    tcp.close
+
+    begin
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'sites.lst'), <<~SITES)
+          localhost:#{good_server.port}
+          localhost:#{mismatched_server.port}
+          127.0.0.1:#{dead_port}
+        SITES
+
+        _stdout, stderr, status = run('-v', '--retries', '0', chdir: dir)
+        expect(status).to be_success, stderr
+
+        expect(stderr).to include('Problems:')
+        expect(stderr).to match(/localhost:#{good_server.port}: self-signed/)
+        expect(stderr).to match(/localhost:#{mismatched_server.port}: wrong host/)
+        expect(stderr).to match(/127\.0\.0\.1:#{dead_port}: unreachable:/)
+      end
+    ensure
+      good_server.stop
+      mismatched_server.stop
+    end
+  end
+
   it 'serves the output directory over HTTP with --serve' do
     server = TlsTestServer.new(common_name: 'localhost')
     free_tcp = TCPServer.new('127.0.0.1', 0)

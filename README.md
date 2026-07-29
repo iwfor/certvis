@@ -30,6 +30,17 @@ Run it once to generate `public/certs.json`:
 bin/certvis -v
 ```
 
+`-v` also lists any problem sites to stderr — unreachable, wrong host,
+untrusted (self-signed vs. an untrusted CA), expired, or expiring within 4
+weeks (matching the dashboard's own danger threshold):
+
+```
+Done: 7/7 reachable. Wrote public/certs.json
+Problems:
+  eng.peakopen.org: untrusted CA (/C=US/O=Let's Encrypt/CN=E7), expired 2026-07-18
+  nosci.net: self-signed, expired 2026-01-29
+```
+
 The page fetches `certs.json` with `fetch()`, which browsers block from
 `file://`, so it needs to be served over HTTP. `--serve` does this for you:
 

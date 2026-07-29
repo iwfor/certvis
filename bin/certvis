@@ -26,6 +26,30 @@ def detect_shell
   ENV['SHELL'].to_s.include?('zsh') ? 'zsh' : 'bash'
 end
 
+WEEK = 7 * 24 * 60 * 60
+DANGER_START = 4 * WEEK # mirrors public/index.html's own DANGER_START
+
+# Issues worth calling out in -v output: unreachable, wrong host, untrusted
+# (self-signed vs. CA-signed-but-not-trusted), expired, or expiring soon.
+def site_issues(result, now)
+  return ["unreachable: #{result.error}"] unless result.reachable
+
+  issues = []
+  issues << 'wrong host' if result.hostname_match == false
+  if result.trusted == false
+    issues << (result.issuer == result.subject ? 'self-signed' : "untrusted CA (#{result.issuer})")
+  end
+  if result.not_after
+    remaining = result.not_after - now
+    if remaining <= 0
+      issues << "expired #{result.not_after.strftime('%Y-%m-%d')}"
+    elsif remaining <= DANGER_START
+      issues << "expires in #{(remaining / 86_400).floor}d (#{result.not_after.strftime('%Y-%m-%d')})"
+    end
+  end
+  issues
+end
+
 OptionParser.new do |opts|
   opts.banner = "Usage: certvis [options]\n\n" \
                 "Checks TLS certificate expiry for every site in sites.lst and writes\n" \
@@ -91,6 +115,15 @@ end
 if options[:verbose]
   failed = results.count { |r| !r.reachable }
   warn "Done: #{results.size - failed}/#{results.size} reachable. Wrote #{options[:output]}"
+
+  now = Time.now.utc
+  problems = results.filter_map { |r| issues = site_issues(r, now); [r.name, issues] unless issues.empty? }
+  unless problems.empty?
+    warn 'Problems:'
+    problems.sort_by { |name, _| name.downcase }.each do |name, issues|
+      warn "  #{name}: #{issues.join(', ')}"
+    end
+  end
 end
 
 if options[:serve]
