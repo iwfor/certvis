@@ -312,6 +312,13 @@
     return lerpColor('#facc15', '#fb7185', t);
   }
 
+  // OpenSSL's default Name#to_s format: "/C=US/O=Let's Encrypt/CN=R3".
+  function commonName(dn) {
+    if (!dn) return null;
+    const match = dn.match(/\/CN=([^/]+)/);
+    return match ? match[1] : null;
+  }
+
   function fmtDuration(ms) {
     const days = Math.floor(Math.abs(ms) / (24 * 60 * 60 * 1000));
     if (days >= 1) return `${days}d`;
@@ -344,10 +351,17 @@
     if (site.reachable && (site.hostname_match === false || site.trusted === false)) {
       const badge = document.createElement('span');
       badge.className = 'badge';
-      badge.textContent = site.hostname_match === false ? 'WRONG HOST' : 'UNTRUSTED';
-      badge.title = site.hostname_match === false
-        ? 'Certificate does not cover this hostname'
-        : 'Certificate chain is not trusted by the system CA store';
+      if (site.hostname_match === false) {
+        badge.textContent = 'WRONG HOST';
+        badge.title = 'Certificate does not cover this hostname';
+      } else {
+        const selfSigned = !!site.issuer && site.issuer === site.subject;
+        const issuerCn = commonName(site.issuer);
+        badge.textContent = selfSigned ? 'SELF-SIGNED' : 'UNTRUSTED CA';
+        badge.title = selfSigned
+          ? 'Certificate is self-signed, not issued by any CA'
+          : `Certificate chain is not trusted by the system CA store (issued by ${issuerCn || site.issuer})`;
+      }
       name.appendChild(badge);
     }
 
