@@ -17,8 +17,14 @@ options = {
   backoff: 2,
   verbose: false,
   sync_html: false,
-  deploy_html: true
+  deploy_html: true,
+  serve: false,
+  port: 8000
 }
+
+def detect_shell
+  ENV['SHELL'].to_s.include?('zsh') ? 'zsh' : 'bash'
+end
 
 OptionParser.new do |opts|
   opts.banner = "Usage: certvis [options]\n\n" \
@@ -35,6 +41,18 @@ OptionParser.new do |opts|
   opts.on('--backoff N', Integer, 'Base backoff seconds; doubles each retry (default: 2)') { |v| options[:backoff] = v }
   opts.on('--sync-html', 'Overwrite index.html next to --output with the bundled copy') { options[:sync_html] = true }
   opts.on('--no-deploy-html', 'Never copy index.html next to --output') { options[:deploy_html] = false }
+  opts.on('--serve', 'Serve the output directory over HTTP after writing') { options[:serve] = true }
+  opts.on('--port N', Integer, 'Port for --serve (default: 8000)') { |v| options[:port] = v }
+  opts.on('--completions [SHELL]', 'Print bash or zsh completions (default: detect $SHELL) and exit') do |v|
+    shell = v || detect_shell
+    source = File.join(install_root, 'completions', "certvis.#{shell}")
+    unless File.exist?(source)
+      warn "No completions available for '#{shell}' (supported: bash, zsh)"
+      exit 1
+    end
+    puts File.read(source)
+    exit
+  end
   opts.on('-v', '--verbose', 'Print progress and a summary to stderr') { options[:verbose] = true }
   opts.on('-h', '--help', 'Show this help') do
     puts opts
@@ -73,4 +91,24 @@ end
 if options[:verbose]
   failed = results.count { |r| !r.reachable }
   warn "Done: #{results.size - failed}/#{results.size} reachable. Wrote #{options[:output]}"
+end
+
+if options[:serve]
+  begin
+    require 'webrick'
+  rescue LoadError
+    warn "--serve needs the webrick gem: run `bundle install` or `gem install webrick`."
+    exit 1
+  end
+
+  docroot = File.dirname(File.expand_path(options[:output]))
+  server = WEBrick::HTTPServer.new(
+    Port: options[:port],
+    DocumentRoot: docroot,
+    Logger: WEBrick::Log.new(File::NULL),
+    AccessLog: []
+  )
+  trap('INT') { server.shutdown }
+  warn "Serving #{docroot} at http://localhost:#{options[:port]}/ (Ctrl-C to stop)"
+  server.start
 end

@@ -18,6 +18,9 @@ bin/certvis [options]
       --backoff N         Base backoff seconds; doubles each retry (default: 2)
       --sync-html         Overwrite index.html next to --output with the bundled copy
       --no-deploy-html    Never copy index.html next to --output
+      --serve             Serve the output directory over HTTP after writing
+      --port N            Port for --serve (default: 8000)
+      --completions [SHELL]  Print bash or zsh completions (default: detect $SHELL) and exit
   -v, --verbose           Print progress and a summary to stderr
 ```
 
@@ -27,14 +30,28 @@ Run it once to generate `public/certs.json`:
 bin/certvis -v
 ```
 
-Then serve the `public/` directory over HTTP (the page fetches
-`certs.json` with `fetch()`, which browsers block from `file://`):
+The page fetches `certs.json` with `fetch()`, which browsers block from
+`file://`, so it needs to be served over HTTP. `--serve` does this for you:
 
 ```
-ruby -run -e httpd public -p 8000
+bin/certvis -v --serve
 ```
 
-and open http://localhost:8000/.
+and open http://localhost:8000/. `--serve` needs the `webrick` gem — run
+`bundle install` once (see [Development](#development)), or `gem install
+webrick`. Pass `--port` to use something other than 8000. This is meant for
+local previewing; for production, point any webserver at the output
+directory, or keep using `ruby -run -e httpd public -p 8000`.
+
+### Shell completions
+
+```
+bin/certvis --completions bash >> ~/.bash_completion   # or wherever bash-completion looks
+bin/certvis --completions zsh > "${fpath[1]}/_certvis"
+```
+
+Leaving off the shell name (`--completions` alone) detects bash vs. zsh from
+`$SHELL`.
 
 ## Scheduling
 
@@ -111,6 +128,20 @@ optional port are used). `#` starts a comment. See the bundled `sites.lst`
 for examples, including a few [badssl.com](https://badssl.com) endpoints
 useful for exercising the expired / wrong-host / untrusted-chain /
 unreachable code paths.
+
+## Development
+
+certvis itself is stdlib-only; the `Gemfile` covers `webrick` (for
+`--serve`) and `rspec` (for the test suite):
+
+```
+bundle install
+bundle exec rspec
+```
+
+The checker specs spin up a real self-signed TLS server on localhost rather
+than mocking OpenSSL, so they exercise the actual handshake, hostname, and
+trust logic.
 
 ## License
 
