@@ -4,10 +4,13 @@
 require 'optparse'
 require_relative '../lib/certvis'
 
-root = File.expand_path('..', __dir__)
+# The install directory (bundled index.html lives here), vs. the caller's
+# cwd (where sites.lst/output default to) -- these differ whenever certvis
+# is invoked via a symlink or from $PATH outside the install directory.
+install_root = File.expand_path('..', __dir__)
 options = {
-  sites_file: File.join(root, 'sites.lst'),
-  output: File.join(root, 'public', 'certs.json'),
+  sites_file: File.join(Dir.pwd, 'sites.lst'),
+  output: File.join(Dir.pwd, 'public', 'certs.json'),
   threads: 2,
   timeout: 10,
   retries: 3,
@@ -24,8 +27,8 @@ OptionParser.new do |opts|
                 "Designed to be run directly or from cron on whatever schedule you like:\n" \
                 "  */15 * * * * cd /path/to/certvis && bin/certvis >> certvis.log 2>&1\n\n"
 
-  opts.on('-f', '--sites-file PATH', 'Path to sites list (default: sites.lst)') { |v| options[:sites_file] = v }
-  opts.on('-o', '--output PATH', 'Path to write JSON output (default: public/certs.json)') { |v| options[:output] = v }
+  opts.on('-f', '--sites-file PATH', 'Path to sites list (default: ./sites.lst)') { |v| options[:sites_file] = v }
+  opts.on('-o', '--output PATH', 'Path to write JSON output (default: ./public/certs.json)') { |v| options[:output] = v }
   opts.on('-t', '--threads N', Integer, 'Number of checker threads (default: 2)') { |v| options[:threads] = v }
   opts.on('--timeout N', Integer, 'Per-connection timeout in seconds (default: 10)') { |v| options[:timeout] = v }
   opts.on('--retries N', Integer, 'Retry attempts per site on failure (default: 3)') { |v| options[:retries] = v }
@@ -57,7 +60,7 @@ Certvis::JsonWriter.write(options[:output], results)
 # cwd), but public/index.html is a static file that isn't regenerated each
 # run — bootstrap it next to the JSON so a bare -o deploys the whole page.
 if options[:deploy_html]
-  source_html = File.join(root, 'public', 'index.html')
+  source_html = File.join(install_root, 'public', 'index.html')
   target_html = File.join(File.dirname(File.expand_path(options[:output])), 'index.html')
 
   if File.expand_path(source_html) != target_html &&

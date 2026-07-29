@@ -1,8 +1,9 @@
 # certvis sites list
 #
-# One site per line: "hostname" or "hostname:port" (port defaults to 443).
-# Blank lines and lines starting with # are ignored; trailing "# ..." is
-# stripped from a line too.
+# One site per line: "hostname", "hostname:port", or a full URL like
+# "https://hostname/path" (scheme and path are stripped; port defaults to
+# 443). Blank lines and lines starting with # are ignored; trailing
+# "# ..." is stripped from a line too.
 
 github.com
 google.com

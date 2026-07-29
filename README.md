@@ -10,8 +10,8 @@ gems, no build step — just Ruby's standard library and a browser.
 ```
 bin/certvis [options]
 
-  -f, --sites-file PATH   Path to sites list (default: sites.lst)
-  -o, --output PATH       Path to write JSON output (default: public/certs.json)
+  -f, --sites-file PATH   Path to sites list (default: ./sites.lst)
+  -o, --output PATH       Path to write JSON output (default: ./public/certs.json)
   -t, --threads N         Number of checker threads (default: 2)
       --timeout N         Per-connection timeout in seconds (default: 10)
       --retries N         Retry attempts per site on failure (default: 3)
@@ -52,17 +52,19 @@ file mid-scan.
 
 ### Running from elsewhere / deploying to a webserver
 
-`bin/certvis` resolves `sites.lst` and `public/` relative to its own
-install location, not your current directory — so it's safe to invoke via
-an absolute path from cron, a symlink on `$PATH`, etc., and it'll still
-find its own files by default.
+By default `-f`/`-o` are resolved relative to your **current directory**,
+not wherever certvis is installed — so a symlink on `$PATH`, or an alias,
+works the way you'd expect: `cd ~/sites/some-project && certvis -v` reads
+`~/sites/some-project/sites.lst` and writes
+`~/sites/some-project/public/certs.json`, letting you keep a separate
+sites.lst (and cron job) per project against a single certvis install.
 
-If you point `-o` somewhere else entirely (e.g. straight into a webserver
-docroot), `index.html` won't be there automatically — it's a static file,
-not something regenerated each run. certvis handles this for you: the
-first time it writes to a new output directory, it copies its bundled
-`index.html` in next to the JSON. Later runs leave that copy alone (so any
-edits you make to the deployed page survive), unless you pass
+Wherever `-o` ends up, `index.html` won't be there automatically — it's a
+static file, not something regenerated each run. certvis handles this for
+you: the first time it writes to a new output directory, it copies its
+bundled `index.html` in next to the JSON, resolved from certvis's own
+install location regardless of your cwd. Later runs leave that copy alone
+(so any edits you make to the deployed page survive), unless you pass
 `--sync-html` to force it back to the bundled version, or
 `--no-deploy-html` to disable the copy entirely.
 
@@ -103,10 +105,12 @@ improperly signed cert is a problem even if the dates look fine.
 
 ## sites.lst
 
-One hostname (or `hostname:port`) per line; `#` starts a comment. See the
-bundled `sites.lst` for examples, including a few
-[badssl.com](https://badssl.com) endpoints useful for exercising the
-expired / wrong-host / untrusted-chain / unreachable code paths.
+One site per line: a bare hostname, `hostname:port`, or a full URL like
+`https://hostname/path` (scheme and path are stripped — only the host and
+optional port are used). `#` starts a comment. See the bundled `sites.lst`
+for examples, including a few [badssl.com](https://badssl.com) endpoints
+useful for exercising the expired / wrong-host / untrusted-chain /
+unreachable code paths.
 
 ## License
 
