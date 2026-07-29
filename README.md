@@ -16,6 +16,8 @@ bin/certvis [options]
       --timeout N         Per-connection timeout in seconds (default: 10)
       --retries N         Retry attempts per site on failure (default: 3)
       --backoff N         Base backoff seconds; doubles each retry (default: 2)
+      --sync-html         Overwrite index.html next to --output with the bundled copy
+      --no-deploy-html    Never copy index.html next to --output
   -v, --verbose           Print progress and a summary to stderr
 ```
 
@@ -47,6 +49,22 @@ reload button), so a 15-minute cron cadence keeps it current:
 Or run it directly whenever you want a refresh. Writes to the output file
 are atomic (write-then-rename), so the dashboard never sees a half-written
 file mid-scan.
+
+### Running from elsewhere / deploying to a webserver
+
+`bin/certvis` resolves `sites.lst` and `public/` relative to its own
+install location, not your current directory — so it's safe to invoke via
+an absolute path from cron, a symlink on `$PATH`, etc., and it'll still
+find its own files by default.
+
+If you point `-o` somewhere else entirely (e.g. straight into a webserver
+docroot), `index.html` won't be there automatically — it's a static file,
+not something regenerated each run. certvis handles this for you: the
+first time it writes to a new output directory, it copies its bundled
+`index.html` in next to the JSON. Later runs leave that copy alone (so any
+edits you make to the deployed page survive), unless you pass
+`--sync-html` to force it back to the bundled version, or
+`--no-deploy-html` to disable the copy entirely.
 
 ## How a site is checked
 

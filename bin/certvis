@@ -12,7 +12,9 @@ options = {
   timeout: 10,
   retries: 3,
   backoff: 2,
-  verbose: false
+  verbose: false,
+  sync_html: false,
+  deploy_html: true
 }
 
 OptionParser.new do |opts|
@@ -28,6 +30,8 @@ OptionParser.new do |opts|
   opts.on('--timeout N', Integer, 'Per-connection timeout in seconds (default: 10)') { |v| options[:timeout] = v }
   opts.on('--retries N', Integer, 'Retry attempts per site on failure (default: 3)') { |v| options[:retries] = v }
   opts.on('--backoff N', Integer, 'Base backoff seconds; doubles each retry (default: 2)') { |v| options[:backoff] = v }
+  opts.on('--sync-html', 'Overwrite index.html next to --output with the bundled copy') { options[:sync_html] = true }
+  opts.on('--no-deploy-html', 'Never copy index.html next to --output') { options[:deploy_html] = false }
   opts.on('-v', '--verbose', 'Print progress and a summary to stderr') { options[:verbose] = true }
   opts.on('-h', '--help', 'Show this help') do
     puts opts
@@ -48,6 +52,20 @@ runner = Certvis::Runner.new(checker: checker, threads: options[:threads])
 results = runner.run(entries)
 
 Certvis::JsonWriter.write(options[:output], results)
+
+# --output can point anywhere (a webserver docroot, run from cron in any
+# cwd), but public/index.html is a static file that isn't regenerated each
+# run — bootstrap it next to the JSON so a bare -o deploys the whole page.
+if options[:deploy_html]
+  source_html = File.join(root, 'public', 'index.html')
+  target_html = File.join(File.dirname(File.expand_path(options[:output])), 'index.html')
+
+  if File.expand_path(source_html) != target_html &&
+     (options[:sync_html] || !File.exist?(target_html))
+    FileUtils.cp(source_html, target_html)
+    warn "Deployed #{source_html} -> #{target_html}"
+  end
+end
 
 if options[:verbose]
   failed = results.count { |r| !r.reachable }
