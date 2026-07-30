@@ -101,6 +101,9 @@
   }
 
   #reload {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     font-family: inherit;
     font-size: 0.78rem;
     color: var(--ink);
@@ -115,7 +118,28 @@
 
   #reload:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.2); }
   #reload:active { transform: translateY(1px); }
-  #reload.spinning .spin-icon { display: inline-block; animation: spin 0.7s linear infinite; }
+
+  @property --elapsed-deg {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  .countdown-pie {
+    --wedge-color: var(--ink-dim);
+    --elapsed-deg: 0deg;
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: conic-gradient(var(--wedge-color) var(--elapsed-deg), var(--surface-border) var(--elapsed-deg));
+    box-shadow: 0 0 0 1px var(--surface-border);
+    transition: --elapsed-deg 1s linear;
+  }
+
+  #reload:hover .countdown-pie { --wedge-color: var(--ink); }
+  #reload.spinning .countdown-pie { animation: spin 0.7s linear infinite; transition: none; }
 
   .sort-toggle {
     display: flex;
@@ -267,7 +291,8 @@
   @media (prefers-reduced-motion: reduce) {
     .bar-fill.pulse::after { animation: none; opacity: 0.85; }
     .bar-fill::before { animation: none; }
-    #reload.spinning .spin-icon { animation: none; }
+    #reload.spinning .countdown-pie { animation: none; }
+    .countdown-pie { transition: none; }
     .bar-fill { transition: none; }
   }
 
@@ -314,10 +339,10 @@
       <div class="status-row">
         <span id="last-updated">—</span>
         <button id="reload" type="button" aria-label="Reload now">
-          <span class="spin-icon" aria-hidden="true">⟳</span> reload
+          <span class="countdown-pie" aria-hidden="true"></span>
+          reload
         </button>
       </div>
-      <span id="next-refresh"></span>
     </div>
   </header>
 
@@ -339,8 +364,8 @@
 
   const content = document.getElementById('content');
   const lastUpdatedEl = document.getElementById('last-updated');
-  const nextRefreshEl = document.getElementById('next-refresh');
   const reloadBtn = document.getElementById('reload');
+  const countdownPie = document.querySelector('.countdown-pie');
   const sortButtons = document.querySelectorAll('.sort-btn');
 
   const SORT_COOKIE = 'certvis_sort';
@@ -564,9 +589,11 @@
 
   function updateCountdown() {
     const remaining = Math.max(0, nextPollAt - Date.now());
+    const frac = 1 - remaining / POLL_MS;
+    countdownPie.style.setProperty('--elapsed-deg', `${frac * 360}deg`);
     const mins = String(Math.floor(remaining / 60000)).padStart(2, '0');
     const secs = String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0');
-    nextRefreshEl.textContent = `next refresh in ${mins}:${secs}`;
+    reloadBtn.title = `Next refresh in ${mins}:${secs}`;
   }
 
   function updateSortButtons() {
