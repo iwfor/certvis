@@ -117,6 +117,37 @@
   #reload:active { transform: translateY(1px); }
   #reload.spinning .spin-icon { display: inline-block; animation: spin 0.7s linear infinite; }
 
+  .sort-toggle {
+    display: flex;
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .sort-toggle span {
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.03em;
+    padding: 5px 0 5px 10px;
+    align-self: center;
+  }
+
+  .sort-btn {
+    font-family: inherit;
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+    background: var(--surface);
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .sort-btn + .sort-btn { border-left: 1px solid var(--surface-border); }
+  .sort-btn.active { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
+  .sort-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.07); }
+
   @keyframes spin { to { transform: rotate(360deg); } }
 
   section.group { margin-bottom: 30px; }
@@ -274,6 +305,13 @@
     </div>
     <div class="status-bar">
       <div class="status-row">
+        <div class="sort-toggle" role="group" aria-label="Sort order">
+          <span>sort</span>
+          <button class="sort-btn" type="button" data-sort="name">name</button>
+          <button class="sort-btn" type="button" data-sort="expiry">expiry</button>
+        </div>
+      </div>
+      <div class="status-row">
         <span id="last-updated">—</span>
         <button id="reload" type="button" aria-label="Reload now">
           <span class="spin-icon" aria-hidden="true">⟳</span> reload
@@ -303,6 +341,22 @@
   const lastUpdatedEl = document.getElementById('last-updated');
   const nextRefreshEl = document.getElementById('next-refresh');
   const reloadBtn = document.getElementById('reload');
+  const sortButtons = document.querySelectorAll('.sort-btn');
+
+  const SORT_COOKIE = 'certvis_sort';
+
+  function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  function setCookie(name, value) {
+    const oneYear = 365 * 24 * 60 * 60;
+    document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${oneYear}; path=/; SameSite=Lax`;
+  }
+
+  let sortMode = getCookie(SORT_COOKIE) === 'expiry' ? 'expiry' : 'name';
+  let lastData = null;
 
   let nextPollAt = 0;
   let pollTimer = null;
@@ -433,9 +487,16 @@
     const now = Date.now();
     const sites = (data.sites || []).map(site => ({ site, info: classify(site, now) }));
 
+    const byName = (a, b) => a.site.name.localeCompare(b.site.name, undefined, { sensitivity: 'base' });
+
     sites.sort((a, b) => {
       if (a.info.rank !== b.info.rank) return a.info.rank - b.info.rank;
-      return a.site.name.localeCompare(b.site.name, undefined, { sensitivity: 'base' });
+      if (sortMode === 'expiry') {
+        const ra = a.info.remaining ?? Infinity;
+        const rb = b.info.remaining ?? Infinity;
+        if (ra !== rb) return ra - rb;
+      }
+      return byName(a, b);
     });
 
     content.innerHTML = '';
@@ -482,6 +543,7 @@
       const res = await fetch(`${DATA_URL}?_=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      lastData = data;
       render(data);
     } catch (err) {
       content.innerHTML = `<div class="error-state">Couldn't load ${DATA_URL} — has bin/certvis run yet?<br>(${err.message})</div>`;
@@ -507,6 +569,21 @@
     nextRefreshEl.textContent = `next refresh in ${mins}:${secs}`;
   }
 
+  function updateSortButtons() {
+    sortButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.sort === sortMode));
+  }
+
+  sortButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.sort === sortMode) return;
+      sortMode = btn.dataset.sort;
+      setCookie(SORT_COOKIE, sortMode);
+      updateSortButtons();
+      if (lastData) render(lastData);
+    });
+  });
+
+  updateSortButtons();
   reloadBtn.addEventListener('click', () => load(true));
   load(false);
 })();
