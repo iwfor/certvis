@@ -264,6 +264,9 @@
       transparent 75%, transparent
     );
     background-size: 22px 22px;
+  }
+
+  .bar-fill.live::before {
     animation: barber-pole 0.9s linear infinite;
   }
 
@@ -290,7 +293,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .bar-fill.pulse::after { animation: none; opacity: 0.85; }
-    .bar-fill::before { animation: none; }
+    .bar-fill.live::before { animation: none; }
     #reload.spinning .countdown-pie { animation: none; }
     .countdown-pie { transition: none; }
     .bar-fill { transition: none; }
@@ -498,6 +501,7 @@
       fill.style.color = color;
       status.textContent = `${fmtDuration(info.remaining)} left`;
       if (info.status === 'danger') fill.classList.add('pulse');
+      if (site.hostname_match !== false && site.trusted !== false) fill.classList.add('live');
     }
 
     row.appendChild(name);
