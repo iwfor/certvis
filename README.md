@@ -16,7 +16,7 @@ bin/certvis [options]
       --timeout N         Per-connection timeout in seconds (default: 10)
       --retries N         Retry attempts per site on failure (default: 3)
       --backoff N         Base backoff seconds; doubles each retry (default: 2)
-      --sync-html         Overwrite index.html next to --output with the bundled copy
+      --preserve-html     Don't overwrite an out-of-date index.html next to --output
       --no-deploy-html    Never copy index.html next to --output
       --serve             Serve the output directory over HTTP after writing
       --port N            Port for --serve (default: 8000)
@@ -91,9 +91,10 @@ Wherever `-o` ends up, `index.html` won't be there automatically — it's a
 static file, not something regenerated each run. certvis handles this for
 you: the first time it writes to a new output directory, it copies its
 bundled `index.html` in next to the JSON, resolved from certvis's own
-install location regardless of your cwd. Later runs leave that copy alone
-(so any edits you make to the deployed page survive), unless you pass
-`--sync-html` to force it back to the bundled version, or
+install location regardless of your cwd. Later runs keep that copy in sync
+with the bundled version whenever it's out of date, so upgrading certvis
+also updates the deployed page. Pass `--preserve-html` if you've made local
+edits to the deployed page and don't want them overwritten, or
 `--no-deploy-html` to disable the copy entirely.
 
 ## How a site is checked

@@ -8,7 +8,7 @@ _certvis() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD - 1]}"
   opts="-f --sites-file -o --output -t --threads --timeout --retries --backoff \
---sync-html --no-deploy-html --serve --port --completions -v --verbose -h --help"
+--preserve-html --no-deploy-html --serve --port --completions -v --verbose -h --help"
 
   case "$prev" in
     -f | --sites-file | -o | --output)

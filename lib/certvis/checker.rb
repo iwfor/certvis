@@ -70,10 +70,18 @@ module Certvis
 
     # A cert can legitimately cover multiple hostnames (SANs); trust and
     # hostname match are independent checks, both required for "properly signed".
+    #
+    # Store#verify checks the whole chain *as of now*, including expiry --
+    # so an expired-but-properly-CA-signed cert would come back untrusted,
+    # and get mislabeled "untrusted CA" instead of "expired". Verify trust
+    # as of just after the cert's own not_before instead, so expiry (judged
+    # separately from not_after) can't masquerade as a trust failure.
     def trusted?(cert, chain)
       store = OpenSSL::X509::Store.new
       store.set_default_paths
-      store.verify(cert, chain)
+      ctx = OpenSSL::X509::StoreContext.new(store, cert, chain)
+      ctx.time = cert.not_before + 1
+      ctx.verify
     rescue OpenSSL::X509::StoreError
       false
     end

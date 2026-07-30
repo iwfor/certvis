@@ -10,7 +10,7 @@ _certvis() {
     '--timeout[Per-connection timeout in seconds]:seconds:' \
     '--retries[Retry attempts per site on failure]:retries:' \
     '--backoff[Base backoff seconds; doubles each retry]:seconds:' \
-    '--sync-html[Overwrite index.html next to --output with the bundled copy]' \
+    '--preserve-html[Do not overwrite an out-of-date index.html next to --output]' \
     '--no-deploy-html[Never copy index.html next to --output]' \
     '--serve[Serve the output directory over HTTP after writing]' \
     '--port[Port for --serve (default 8000)]:port:' \

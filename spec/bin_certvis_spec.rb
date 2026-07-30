@@ -96,6 +96,48 @@ RSpec.describe 'bin/certvis' do
     end
   end
 
+  it 'resyncs an out-of-date deployed index.html by default' do
+    server = TlsTestServer.new(common_name: 'localhost')
+    begin
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'sites.lst'), "localhost:#{server.port}\n")
+        html_path = File.join(dir, 'public', 'index.html')
+
+        run('-v', chdir: dir)
+        FileUtils.mkdir_p(File.dirname(html_path))
+        File.write(html_path, 'stale copy')
+
+        _stdout, stderr, status = run('-v', chdir: dir)
+        expect(status).to be_success, stderr
+        expect(stderr).to include('Updated')
+        expect(File.read(html_path)).not_to eq('stale copy')
+      end
+    ensure
+      server.stop
+    end
+  end
+
+  it 'leaves an out-of-date deployed index.html alone with --preserve-html' do
+    server = TlsTestServer.new(common_name: 'localhost')
+    begin
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'sites.lst'), "localhost:#{server.port}\n")
+        html_path = File.join(dir, 'public', 'index.html')
+
+        run('-v', chdir: dir)
+        FileUtils.mkdir_p(File.dirname(html_path))
+        File.write(html_path, 'stale copy')
+
+        _stdout, stderr, status = run('-v', '--preserve-html', chdir: dir)
+        expect(status).to be_success, stderr
+        expect(stderr).not_to include('Updated')
+        expect(File.read(html_path)).to eq('stale copy')
+      end
+    ensure
+      server.stop
+    end
+  end
+
   it 'serves the output directory over HTTP with --serve' do
     server = TlsTestServer.new(common_name: 'localhost')
     free_tcp = TCPServer.new('127.0.0.1', 0)
