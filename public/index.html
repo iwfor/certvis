@@ -132,46 +132,53 @@
     gap: 10px;
   }
 
-  #reload {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-family: inherit;
-    font-size: 0.78rem;
-    color: var(--ink);
-    background: var(--surface);
-    border: 1px solid var(--surface-border);
-    border-radius: 6px;
-    padding: 7px 12px;
-    cursor: pointer;
-    letter-spacing: 0.03em;
-    transition: background 0.15s ease, border-color 0.15s ease;
-  }
-
-  #reload:hover { background: var(--hover-bg); border-color: var(--hover-border); }
-  #reload:active { transform: translateY(1px); }
-
   @property --elapsed-deg {
     syntax: '<angle>';
     inherits: false;
     initial-value: 0deg;
   }
 
+  .reload-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+  }
+
   .countdown-pie {
     --wedge-color: var(--ink-dim);
     --elapsed-deg: 0deg;
-    display: inline-block;
-    width: 13px;
-    height: 13px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    flex-shrink: 0;
     background: conic-gradient(var(--wedge-color) var(--elapsed-deg), var(--surface-border) var(--elapsed-deg));
     box-shadow: 0 0 0 1px var(--surface-border);
+    mask-image: radial-gradient(circle, transparent 0 63%, black 64% 100%);
+    -webkit-mask-image: radial-gradient(circle, transparent 0 63%, black 64% 100%);
     transition: --elapsed-deg 1s linear;
   }
 
+  .refresh-emoji {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink-dim);
+    opacity: 0.6;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+
+  #reload, #reload:hover { border-color: transparent; }
   #reload:hover .countdown-pie { --wedge-color: var(--ink); }
-  #reload.spinning .countdown-pie { animation: spin 0.7s linear infinite; transition: none; }
+  #reload:hover .refresh-emoji { color: var(--ink); opacity: 1; }
+
+  #reload.spinning .reload-icon { animation: spin 0.7s linear infinite; }
+  #reload.spinning .countdown-pie { transition: none; }
 
   .icon-toolbar {
     display: flex;
@@ -287,7 +294,7 @@
     overflow: hidden;
   }
 
-  .bar-fill::before {
+  .bar-fill.live::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -299,9 +306,6 @@
       transparent 75%, transparent
     );
     background-size: 22px 22px;
-  }
-
-  .bar-fill.live::before {
     animation: barber-pole 0.9s linear infinite;
   }
 
@@ -329,7 +333,7 @@
   @media (prefers-reduced-motion: reduce) {
     .bar-fill.pulse::after { animation: none; opacity: 0.85; }
     .bar-fill.live::before { animation: none; }
-    #reload.spinning .countdown-pie { animation: none; }
+    #reload.spinning .reload-icon { animation: none; }
     .countdown-pie { transition: none; }
     .bar-fill { transition: none; }
   }
@@ -345,6 +349,9 @@
   }
 
   footer {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     margin-top: 30px;
     color: var(--ink-faint);
     font-size: 0.7rem;
@@ -368,19 +375,19 @@
     </div>
     <div class="status-bar">
       <div class="status-row">
-        <div class="icon-toolbar" role="group" aria-label="Sort and theme controls">
+        <div class="icon-toolbar" role="group" aria-label="Sort, theme, and reload controls">
           <button class="icon-btn sort-btn" type="button" data-sort="name" title="Sort alphabetically by name" aria-label="Sort alphabetically by name">🅰️</button>
           <button class="icon-btn sort-btn" type="button" data-sort="expiry" title="Sort by soonest to expire" aria-label="Sort by soonest to expire">🕐</button>
           <span class="icon-toolbar-divider" aria-hidden="true"></span>
           <button id="theme-btn" class="icon-btn" type="button" aria-label="Toggle theme"></button>
+          <span class="icon-toolbar-divider" aria-hidden="true"></span>
+          <button id="reload" class="icon-btn" type="button" aria-label="Reload now">
+            <span class="reload-icon">
+              <span class="countdown-pie" aria-hidden="true"></span>
+              <span class="refresh-emoji" aria-hidden="true">⟳</span>
+            </span>
+          </button>
         </div>
-      </div>
-      <div class="status-row">
-        <span id="last-updated">—</span>
-        <button id="reload" type="button" aria-label="Reload now">
-          <span class="countdown-pie" aria-hidden="true"></span>
-          reload
-        </button>
       </div>
     </div>
   </header>
@@ -389,7 +396,10 @@
     <div class="empty-state">Waiting for the first scan…</div>
   </div>
 
-  <footer>data refreshes automatically every 15 minutes</footer>
+  <footer>
+    <div id="last-updated">—</div>
+    <div>data refreshes automatically every 15 minutes</div>
+  </footer>
 </main>
 
 <script>
@@ -600,7 +610,7 @@
 
     if (data.generated_at) {
       const genAt = new Date(data.generated_at);
-      lastUpdatedEl.textContent = `scanned ${genAt.toLocaleTimeString()}`;
+      lastUpdatedEl.textContent = `scanned ${genAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
       lastUpdatedEl.title = genAt.toString();
     }
   }
