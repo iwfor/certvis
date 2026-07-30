@@ -4,8 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>certvis</title>
+<script>
+  (function () {
+    var m = document.cookie.match(/(?:^|; )certvis_theme=([^;]*)/);
+    if (m && decodeURIComponent(m[1]) === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
 <style>
   :root {
+    color-scheme: dark;
     --bg-a: #030105;
     --bg-b: #170a29;
     --bg-c: #2b0f4f;
@@ -15,6 +24,10 @@
     --ink-dim: #9a90b3;
     --ink-faint: #6a6182;
     --track: rgba(255, 255, 255, 0.07);
+    --texture: rgba(255, 255, 255, 0.012);
+    --hover-bg: rgba(255, 255, 255, 0.07);
+    --hover-border: rgba(255, 255, 255, 0.2);
+    --active-bg: rgba(255, 255, 255, 0.12);
 
     --good: #4ade80;
     --warn: #facc15;
@@ -23,6 +36,23 @@
     --unreachable: #050505;
 
     --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg-a: #e2dfe6;
+    --bg-b: #e0cdf0;
+    --bg-c: #c79ce8;
+    --surface: rgba(36, 15, 66, 0.035);
+    --surface-border: rgba(36, 15, 66, 0.12);
+    --ink: #241736;
+    --ink-dim: #6b5f88;
+    --ink-faint: #9a8fb8;
+    --track: rgba(36, 15, 66, 0.08);
+    --texture: rgba(36, 15, 66, 0.025);
+    --hover-bg: rgba(36, 15, 66, 0.06);
+    --hover-border: rgba(36, 15, 66, 0.22);
+    --active-bg: rgba(36, 15, 66, 0.1);
   }
 
   * { box-sizing: border-box; }
@@ -39,8 +69,8 @@
     background:
       repeating-linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.012) 0px,
-        rgba(255, 255, 255, 0.012) 1px,
+        var(--texture) 0px,
+        var(--texture) 1px,
         transparent 1px,
         transparent 34px
       ),
@@ -97,6 +127,8 @@
   .status-row {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 10px;
   }
 
@@ -116,7 +148,7 @@
     transition: background 0.15s ease, border-color 0.15s ease;
   }
 
-  #reload:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.2); }
+  #reload:hover { background: var(--hover-bg); border-color: var(--hover-border); }
   #reload:active { transform: translateY(1px); }
 
   @property --elapsed-deg {
@@ -141,36 +173,39 @@
   #reload:hover .countdown-pie { --wedge-color: var(--ink); }
   #reload.spinning .countdown-pie { animation: spin 0.7s linear infinite; transition: none; }
 
-  .sort-toggle {
+  .icon-toolbar {
     display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .icon-toolbar-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--surface-border);
+    margin: 0 3px;
+  }
+
+  .icon-btn {
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
     border: 1px solid var(--surface-border);
     border-radius: 6px;
-    overflow: hidden;
-  }
-
-  .sort-toggle span {
-    font-size: 0.72rem;
-    color: var(--ink-faint);
-    letter-spacing: 0.03em;
-    padding: 5px 0 5px 10px;
-    align-self: center;
-  }
-
-  .sort-btn {
-    font-family: inherit;
-    font-size: 0.72rem;
-    color: var(--ink-dim);
-    background: var(--surface);
-    border: none;
-    padding: 5px 10px;
     cursor: pointer;
-    letter-spacing: 0.03em;
-    transition: background 0.15s ease, color 0.15s ease;
+    opacity: 0.55;
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
   }
 
-  .sort-btn + .sort-btn { border-left: 1px solid var(--surface-border); }
-  .sort-btn.active { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
-  .sort-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.07); }
+  .icon-btn:hover { background: var(--hover-bg); border-color: var(--hover-border); opacity: 1; }
+  .icon-btn.active { background: var(--active-bg); opacity: 1; }
+  .icon-btn:active { transform: translateY(1px); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -333,10 +368,11 @@
     </div>
     <div class="status-bar">
       <div class="status-row">
-        <div class="sort-toggle" role="group" aria-label="Sort order">
-          <span>sort</span>
-          <button class="sort-btn" type="button" data-sort="name">name</button>
-          <button class="sort-btn" type="button" data-sort="expiry">expiry</button>
+        <div class="icon-toolbar" role="group" aria-label="Sort and theme controls">
+          <button class="icon-btn sort-btn" type="button" data-sort="name" title="Sort alphabetically by name" aria-label="Sort alphabetically by name">🅰️</button>
+          <button class="icon-btn sort-btn" type="button" data-sort="expiry" title="Sort by soonest to expire" aria-label="Sort by soonest to expire">🕐</button>
+          <span class="icon-toolbar-divider" aria-hidden="true"></span>
+          <button id="theme-btn" class="icon-btn" type="button" aria-label="Toggle theme"></button>
         </div>
       </div>
       <div class="status-row">
@@ -370,8 +406,10 @@
   const reloadBtn = document.getElementById('reload');
   const countdownPie = document.querySelector('.countdown-pie');
   const sortButtons = document.querySelectorAll('.sort-btn');
+  const themeBtn = document.getElementById('theme-btn');
 
   const SORT_COOKIE = 'certvis_sort';
+  const THEME_COOKIE = 'certvis_theme';
 
   function getCookie(name) {
     const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -384,6 +422,7 @@
   }
 
   let sortMode = getCookie(SORT_COOKIE) === 'expiry' ? 'expiry' : 'name';
+  let theme = getCookie(THEME_COOKIE) === 'light' ? 'light' : 'dark';
   let lastData = null;
 
   let nextPollAt = 0;
@@ -601,7 +640,11 @@
   }
 
   function updateSortButtons() {
-    sortButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.sort === sortMode));
+    sortButtons.forEach(btn => {
+      const active = btn.dataset.sort === sortMode;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active);
+    });
   }
 
   sortButtons.forEach(btn => {
@@ -614,7 +657,20 @@
     });
   });
 
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    themeBtn.textContent = t === 'dark' ? '🌙' : '☀️';
+    themeBtn.title = t === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+  }
+
+  themeBtn.addEventListener('click', () => {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    setCookie(THEME_COOKIE, theme);
+    applyTheme(theme);
+  });
+
   updateSortButtons();
+  applyTheme(theme);
   reloadBtn.addEventListener('click', () => load(true));
   load(false);
 })();
