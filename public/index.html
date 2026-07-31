@@ -214,6 +214,37 @@
   .icon-btn.active { background: var(--active-bg); opacity: 1; }
   .icon-btn:active { transform: translateY(1px); }
 
+  .filter-bar {
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    margin-bottom: 22px;
+  }
+
+  .filter-bar:not([hidden]) { display: flex; }
+
+  .filter-input {
+    flex: 1;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+
+  .filter-input::placeholder { color: var(--ink-faint); }
+
+  .filter-input:focus {
+    outline: none;
+    border-color: var(--hover-border);
+    background: var(--hover-bg);
+  }
+
+  .filter-clear { flex-shrink: 0; }
+
   @keyframes spin { to { transform: rotate(360deg); } }
 
   section.group { margin-bottom: 30px; }
@@ -375,7 +406,9 @@
     </div>
     <div class="status-bar">
       <div class="status-row">
-        <div class="icon-toolbar" role="group" aria-label="Sort, theme, and reload controls">
+        <div class="icon-toolbar" role="group" aria-label="Filter, sort, theme, and reload controls">
+          <button id="filter-btn" class="icon-btn" type="button" title="Filter sites" aria-label="Filter sites" aria-pressed="false">🔍</button>
+          <span class="icon-toolbar-divider" aria-hidden="true"></span>
           <button class="icon-btn sort-btn" type="button" data-sort="name" title="Sort alphabetically by name" aria-label="Sort alphabetically by name">🅰️</button>
           <button class="icon-btn sort-btn" type="button" data-sort="expiry" title="Sort by soonest to expire" aria-label="Sort by soonest to expire">🕐</button>
           <span class="icon-toolbar-divider" aria-hidden="true"></span>
@@ -391,6 +424,11 @@
       </div>
     </div>
   </header>
+
+  <div id="filter-bar" class="filter-bar" hidden>
+    <input id="filter-input" class="filter-input" type="text" placeholder="Filter sites…" aria-label="Filter sites" autocomplete="off" spellcheck="false">
+    <button id="filter-clear" class="icon-btn filter-clear" type="button" title="Clear filter" aria-label="Clear filter">✕</button>
+  </div>
 
   <div id="content">
     <div class="empty-state">Waiting for the first scan…</div>
@@ -417,9 +455,14 @@
   const countdownPie = document.querySelector('.countdown-pie');
   const sortButtons = document.querySelectorAll('.sort-btn');
   const themeBtn = document.getElementById('theme-btn');
+  const filterBtn = document.getElementById('filter-btn');
+  const filterBar = document.getElementById('filter-bar');
+  const filterInput = document.getElementById('filter-input');
+  const filterClear = document.getElementById('filter-clear');
 
   const SORT_COOKIE = 'certvis_sort';
   const THEME_COOKIE = 'certvis_theme';
+  const FILTER_PARAM = 'filter';
 
   function getCookie(name) {
     const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -433,6 +476,7 @@
 
   let sortMode = getCookie(SORT_COOKIE) === 'expiry' ? 'expiry' : 'name';
   let theme = getCookie(THEME_COOKIE) === 'light' ? 'light' : 'dark';
+  let filterText = new URLSearchParams(window.location.search).get(FILTER_PARAM) || '';
   let lastData = null;
 
   let nextPollAt = 0;
@@ -563,7 +607,7 @@
 
   function render(data) {
     const now = Date.now();
-    const sites = (data.sites || []).map(site => ({ site, info: classify(site, now) }));
+    let sites = (data.sites || []).map(site => ({ site, info: classify(site, now) }));
 
     const byName = (a, b) => a.site.name.localeCompare(b.site.name, undefined, { sensitivity: 'base' });
 
@@ -581,6 +625,16 @@
 
     if (sites.length === 0) {
       content.innerHTML = '<div class="empty-state">No sites configured. Add hosts to sites.lst and run bin/certvis.</div>';
+      return;
+    }
+
+    const needle = filterText.trim().toLowerCase();
+    if (needle) {
+      sites = sites.filter(({ site }) => site.name.toLowerCase().includes(needle));
+    }
+
+    if (sites.length === 0) {
+      content.innerHTML = '<div class="empty-state">No sites match your filter.</div>';
       return;
     }
 
@@ -678,6 +732,51 @@
     setCookie(THEME_COOKIE, theme);
     applyTheme(theme);
   });
+
+  function updateUrlFilter(value) {
+    const url = new URL(window.location.href);
+    if (value) {
+      url.searchParams.set(FILTER_PARAM, value);
+    } else {
+      url.searchParams.delete(FILTER_PARAM);
+    }
+    window.history.replaceState(window.history.state, '', url);
+  }
+
+  function setFilterOpen(open, { focus = false } = {}) {
+    filterBar.hidden = !open;
+    filterBtn.classList.toggle('active', open);
+    filterBtn.setAttribute('aria-pressed', String(open));
+    if (open && focus) filterInput.focus();
+  }
+
+  function applyFilter(value) {
+    filterText = value;
+    if (filterInput.value !== value) filterInput.value = value;
+    updateUrlFilter(value);
+    if (lastData) render(lastData);
+  }
+
+  filterBtn.addEventListener('click', () => {
+    if (!filterBar.hidden) {
+      applyFilter('');
+      setFilterOpen(false);
+    } else {
+      setFilterOpen(true, { focus: true });
+    }
+  });
+
+  filterInput.addEventListener('input', () => applyFilter(filterInput.value));
+
+  filterClear.addEventListener('click', () => {
+    applyFilter('');
+    filterInput.focus();
+  });
+
+  if (filterText) {
+    filterInput.value = filterText;
+    setFilterOpen(true);
+  }
 
   updateSortButtons();
   applyTheme(theme);
