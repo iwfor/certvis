@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Builds the certvis container image for linux/amd64 and linux/arm64 as a
+# single podman manifest list, tagged with lib/certvis.rb's VERSION and
+# :latest. Pass --push to also publish both tags to docker.io.
+#
+# Usage:
+#   script/build-image          # build only
+#   script/build-image --push   # build and push to docker.io
+
+require_relative '../lib/certvis'
+
+IMAGE = 'docker.io/iwfor/certvis'
+PLATFORMS = %w[linux/amd64 linux/arm64].join(',')
+
+root = File.expand_path('..', __dir__)
+push = ARGV.include?('--push')
+
+def run!(*cmd)
+  puts "+ #{cmd.join(' ')}"
+  system(*cmd) || abort("command failed: #{cmd.join(' ')}")
+end
+
+tag = "#{IMAGE}:#{Certvis::VERSION}"
+latest = "#{IMAGE}:latest"
+
+run!('podman', 'manifest', 'rm', tag) if system('podman', 'manifest', 'exists', tag)
+run!('podman', 'manifest', 'create', tag)
+run!('podman', 'build', '--format', 'docker', '--platform', PLATFORMS, '--manifest', tag, root)
+run!('podman', 'tag', tag, latest)
+
+if push
+  run!('podman', 'manifest', 'push', '--all', tag, "docker://#{tag}")
+  run!('podman', 'manifest', 'push', '--all', tag, "docker://#{latest}")
+  puts "Pushed #{tag} and #{latest}"
+else
+  puts "Built #{tag} (multi-arch manifest, not pushed). Re-run with --push to publish to docker.io."
+end

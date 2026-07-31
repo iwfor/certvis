@@ -14,6 +14,7 @@ _certvis() {
     '--no-deploy-html[Never copy index.html next to --output]' \
     '--serve[Serve the output directory over HTTP after writing]' \
     '--port[Port for --serve (default 8000)]:port:' \
+    '--interval[With --serve, re-scan every N seconds instead of just once]:seconds:' \
     '--completions[Print shell completions and exit]:shell:(bash zsh)' \
     '(-v --verbose)'{-v,--verbose}'[Print progress and a summary to stderr]' \
     '(-h --help)'{-h,--help}'[Show help]'

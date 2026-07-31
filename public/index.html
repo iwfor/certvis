@@ -436,7 +436,7 @@
 
   <footer>
     <div id="last-updated">—</div>
-    <div>data refreshes automatically every 15 minutes</div>
+    <div id="version-info">—</div>
   </footer>
 </main>
 
@@ -444,6 +444,7 @@
 (() => {
   const DATA_URL = 'certs.json';
   const POLL_MS = 15 * 60 * 1000;
+  const GITHUB_URL = 'https://github.com/iwfor/certvis';
   const WEEK = 7 * 24 * 60 * 60 * 1000;
   const DANGER_START = 4 * WEEK;  // green -> yellow begins
   const DANGER_MID = 3 * WEEK;    // pure yellow
@@ -451,6 +452,7 @@
 
   const content = document.getElementById('content');
   const lastUpdatedEl = document.getElementById('last-updated');
+  const versionInfoEl = document.getElementById('version-info');
   const reloadBtn = document.getElementById('reload');
   const countdownPie = document.querySelector('.countdown-pie');
   const sortButtons = document.querySelectorAll('.sort-btn');
@@ -666,6 +668,10 @@
       const genAt = new Date(data.generated_at);
       lastUpdatedEl.textContent = `scanned ${genAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
       lastUpdatedEl.title = genAt.toString();
+    }
+
+    if (data.certvis_version) {
+      versionInfoEl.innerHTML = `${data.certvis_version} &#8212; <a href="${GITHUB_URL}">${GITHUB_URL}</a>`;
     }
   }
 

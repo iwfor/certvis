@@ -8,7 +8,7 @@ _certvis() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD - 1]}"
   opts="-f --sites-file -o --output -t --threads --timeout --retries --backoff \
---preserve-html --no-deploy-html --serve --port --completions -v --verbose -h --help"
+--preserve-html --no-deploy-html --serve --port --interval --completions -v --verbose -h --help"
 
   case "$prev" in
     -f | --sites-file | -o | --output)
@@ -19,7 +19,7 @@ _certvis() {
       COMPREPLY=($(compgen -W "bash zsh" -- "$cur"))
       return 0
       ;;
-    -t | --threads | --timeout | --retries | --backoff | --port)
+    -t | --threads | --timeout | --retries | --backoff | --port | --interval)
       return 0
       ;;
   esac

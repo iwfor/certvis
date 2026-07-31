@@ -1,0 +1,10 @@
+.git
+.gitignore
+.DS_Store
+spec
+screenshots
+README.md
+LICENSE
+.rspec
+*.log
+public/certs.json

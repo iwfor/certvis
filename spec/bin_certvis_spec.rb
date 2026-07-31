@@ -173,4 +173,48 @@ RSpec.describe 'bin/certvis' do
       end
     end
   end
+
+  it 're-scans on a schedule with --serve --interval' do
+    server = TlsTestServer.new(common_name: 'localhost')
+    free_tcp = TCPServer.new('127.0.0.1', 0)
+    http_port = free_tcp.addr[1]
+    free_tcp.close
+
+    pid = nil
+    begin
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, 'sites.lst'), "localhost:#{server.port}\n")
+        json_path = File.join(dir, 'public', 'certs.json')
+
+        pid = Process.spawn(
+          RbConfig.ruby, bin, '--serve', '--port', http_port.to_s, '--interval', '1',
+          chdir: dir, out: File::NULL, err: File::NULL
+        )
+
+        first_generated_at = nil
+        20.times do
+          break if File.exist?(json_path) && (first_generated_at = JSON.parse(File.read(json_path))['generated_at'])
+
+          sleep 0.1
+        end
+        expect(first_generated_at).not_to be_nil
+
+        later_generated_at = nil
+        30.times do
+          later_generated_at = JSON.parse(File.read(json_path))['generated_at']
+          break if later_generated_at != first_generated_at
+
+          sleep 0.2
+        end
+
+        expect(later_generated_at).not_to eq(first_generated_at)
+      end
+    ensure
+      server.stop
+      if pid
+        Process.kill('TERM', pid)
+        Process.wait(pid)
+      end
+    end
+  end
 end

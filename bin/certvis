@@ -9,6 +9,7 @@ require_relative '../lib/certvis'
 # is invoked via a symlink or from $PATH outside the install directory.
 install_root = File.expand_path('..', __dir__)
 options = {
+  install_root: install_root,
   sites_file: File.join(Dir.pwd, 'sites.lst'),
   output: File.join(Dir.pwd, 'public', 'certs.json'),
   threads: 2,
@@ -19,7 +20,8 @@ options = {
   preserve_html: false,
   deploy_html: true,
   serve: false,
-  port: 8000
+  port: 8000,
+  interval: nil
 }
 
 def detect_shell
@@ -50,6 +52,58 @@ def site_issues(result, now)
   issues
 end
 
+# Runs one full scan-and-write cycle. Shared by the one-shot path and by
+# --serve --interval's background rescans, so both stay in sync instead of
+# drifting apart.
+def scan_once(options, runner, exit_on_empty:)
+  entries = Certvis::SiteList.load(options[:sites_file])
+  if entries.empty?
+    warn "No sites found in #{options[:sites_file]}"
+    exit 1 if exit_on_empty
+    return
+  end
+
+  warn "Checking #{entries.size} site(s) with #{options[:threads]} thread(s)..." if options[:verbose]
+  results = runner.run(entries)
+  Certvis::JsonWriter.write(options[:output], results)
+  deploy_html(options)
+
+  return unless options[:verbose]
+
+  failed = results.count { |r| !r.reachable }
+  warn "Done: #{results.size - failed}/#{results.size} reachable. Wrote #{options[:output]}"
+
+  now = Time.now.utc
+  problems = results.filter_map { |r| issues = site_issues(r, now); [r.name, issues] unless issues.empty? }
+  return if problems.empty?
+
+  warn 'Problems:'
+  problems.sort_by { |name, _| name.downcase }.each do |name, issues|
+    warn "  #{name}: #{issues.join(', ')}"
+  end
+end
+
+# --output can point anywhere (a webserver docroot, run from cron in any
+# cwd), but public/index.html is a static file that isn't regenerated each
+# run — bootstrap it next to the JSON so a bare -o deploys the whole page,
+# and keep it in sync on later runs so bundled HTML/CSS/JS updates actually
+# reach the deployed copy (--preserve-html opts out, e.g. for local edits).
+def deploy_html(options)
+  return unless options[:deploy_html]
+
+  source_html = File.join(options[:install_root], 'public', 'index.html')
+  target_html = File.join(File.dirname(File.expand_path(options[:output])), 'index.html')
+  return if File.expand_path(source_html) == target_html
+
+  if !File.exist?(target_html)
+    FileUtils.cp(source_html, target_html)
+    warn "Deployed #{source_html} -> #{target_html}"
+  elsif !options[:preserve_html] && !FileUtils.compare_file(source_html, target_html)
+    FileUtils.cp(source_html, target_html)
+    warn "Updated #{target_html} (was out of date)"
+  end
+end
+
 OptionParser.new do |opts|
   opts.banner = "Usage: certvis [options]\n\n" \
                 "Checks TLS certificate expiry for every site in sites.lst and writes\n" \
@@ -67,6 +121,7 @@ OptionParser.new do |opts|
   opts.on('--no-deploy-html', 'Never copy index.html next to --output') { options[:deploy_html] = false }
   opts.on('--serve', 'Serve the output directory over HTTP after writing') { options[:serve] = true }
   opts.on('--port N', Integer, 'Port for --serve (default: 8000)') { |v| options[:port] = v }
+  opts.on('--interval N', Integer, 'With --serve, re-scan every N seconds instead of just once') { |v| options[:interval] = v }
   opts.on('--completions [SHELL]', 'Print bash or zsh completions (default: detect $SHELL) and exit') do |v|
     shell = v || detect_shell
     source = File.join(install_root, 'completions', "certvis.#{shell}")
@@ -84,53 +139,10 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-entries = Certvis::SiteList.load(options[:sites_file])
-if entries.empty?
-  warn "No sites found in #{options[:sites_file]}"
-  exit 1
-end
-
-warn "Checking #{entries.size} site(s) with #{options[:threads]} thread(s)..." if options[:verbose]
-
 checker = Certvis::Checker.new(timeout: options[:timeout], retries: options[:retries], backoff: options[:backoff])
 runner = Certvis::Runner.new(checker: checker, threads: options[:threads])
-results = runner.run(entries)
 
-Certvis::JsonWriter.write(options[:output], results)
-
-# --output can point anywhere (a webserver docroot, run from cron in any
-# cwd), but public/index.html is a static file that isn't regenerated each
-# run — bootstrap it next to the JSON so a bare -o deploys the whole page,
-# and keep it in sync on later runs so bundled HTML/CSS/JS updates actually
-# reach the deployed copy (--preserve-html opts out, e.g. for local edits).
-if options[:deploy_html]
-  source_html = File.join(install_root, 'public', 'index.html')
-  target_html = File.join(File.dirname(File.expand_path(options[:output])), 'index.html')
-
-  if File.expand_path(source_html) != target_html
-    if !File.exist?(target_html)
-      FileUtils.cp(source_html, target_html)
-      warn "Deployed #{source_html} -> #{target_html}"
-    elsif !options[:preserve_html] && !FileUtils.compare_file(source_html, target_html)
-      FileUtils.cp(source_html, target_html)
-      warn "Updated #{target_html} (was out of date)"
-    end
-  end
-end
-
-if options[:verbose]
-  failed = results.count { |r| !r.reachable }
-  warn "Done: #{results.size - failed}/#{results.size} reachable. Wrote #{options[:output]}"
-
-  now = Time.now.utc
-  problems = results.filter_map { |r| issues = site_issues(r, now); [r.name, issues] unless issues.empty? }
-  unless problems.empty?
-    warn 'Problems:'
-    problems.sort_by { |name, _| name.downcase }.each do |name, issues|
-      warn "  #{name}: #{issues.join(', ')}"
-    end
-  end
-end
+scan_once(options, runner, exit_on_empty: true)
 
 if options[:serve]
   begin
@@ -138,6 +150,15 @@ if options[:serve]
   rescue LoadError
     warn "--serve needs the webrick gem: run `bundle install` or `gem install webrick`."
     exit 1
+  end
+
+  if options[:interval]
+    Thread.new do
+      loop do
+        sleep options[:interval]
+        scan_once(options, runner, exit_on_empty: false)
+      end
+    end
   end
 
   docroot = File.dirname(File.expand_path(options[:output]))
@@ -148,6 +169,8 @@ if options[:serve]
     AccessLog: []
   )
   trap('INT') { server.shutdown }
-  warn "Serving #{docroot} at http://localhost:#{options[:port]}/ (Ctrl-C to stop)"
+  trap('TERM') { server.shutdown }
+  cadence = options[:interval] ? ", re-scanning every #{options[:interval]}s" : ''
+  warn "Serving #{docroot} at http://localhost:#{options[:port]}/#{cadence} (Ctrl-C to stop)"
   server.start
 end

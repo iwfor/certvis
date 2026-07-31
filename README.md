@@ -39,6 +39,7 @@ bin/certvis [options]
       --no-deploy-html    Never copy index.html next to --output
       --serve             Serve the output directory over HTTP after writing
       --port N            Port for --serve (default: 8000)
+      --interval N        With --serve, re-scan every N seconds instead of just once
       --completions [SHELL]  Print bash or zsh completions (default: detect $SHELL) and exit
   -v, --verbose           Print progress and a summary to stderr
 ```
@@ -97,6 +98,14 @@ Or run it directly whenever you want a refresh. Writes to the output file
 are atomic (write-then-rename), so the dashboard never sees a half-written
 file mid-scan.
 
+Nowhere to put a cron job (e.g. inside a container)? `--serve --interval N`
+does both jobs in one process — it scans, serves, then re-scans every `N`
+seconds in the background for as long as the server runs:
+
+```
+bin/certvis --serve --interval 900
+```
+
 ### Running from elsewhere / deploying to a webserver
 
 By default `-f`/`-o` are resolved relative to your **current directory**,
@@ -115,6 +124,31 @@ with the bundled version whenever it's out of date, so upgrading certvis
 also updates the deployed page. Pass `--preserve-html` if you've made local
 edits to the deployed page and don't want them overwritten, or
 `--no-deploy-html` to disable the copy entirely.
+
+## Container
+
+The bundled `Containerfile` builds a self-contained image that scans and
+serves via `bin/certvis --serve --interval` (see [Scheduling](#scheduling))
+— no cron needed inside the container. `script/build-image` builds it for
+both `linux/amd64` and `linux/arm64` as a single podman manifest list,
+tagged with [`Certvis::VERSION`](lib/certvis.rb) and `latest`:
+
+```
+script/build-image          # build only
+script/build-image --push   # build and push both tags to docker.io/iwfor/certvis
+```
+
+Run it with your own `sites.lst` bind-mounted in:
+
+```
+podman run -d -p 8000:8000 -v ./sites.lst:/app/sites.lst:ro docker.io/iwfor/certvis
+# or, with Docker:
+docker run -d -p 8000:8000 -v ./sites.lst:/app/sites.lst:ro docker.io/iwfor/certvis
+```
+
+`CERTVIS_INTERVAL` (seconds, default 900) sets the re-scan cadence;
+`CERTVIS_PORT` (default 8000) sets what port the built-in server listens on
+inside the container — pair it with a matching `-p` if you change it.
 
 ## How a site is checked
 

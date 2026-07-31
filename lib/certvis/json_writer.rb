@@ -7,6 +7,7 @@ module Certvis
     def write(path, results)
       payload = {
         generated_at: Time.now.utc.iso8601,
+        certvis_version: Certvis::VERSION,
         sites: results.sort_by { |r| r.name.downcase }.map { |r| result_to_h(r) }
       }
 
