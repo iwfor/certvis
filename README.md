@@ -5,6 +5,25 @@ a dashboard. A small Ruby script does the checking and writes a JSON file;
 a static HTML page polls that JSON and draws a progress bar per site. No
 gems, no build step — just Ruby's standard library and a browser.
 
+## Screenshots
+
+Each site's bar is colored by urgency — green while comfortable, blending
+through yellow and light red as expiry approaches, dark red once expired,
+solid black when a site can't be reached at all. Sites with a mismatched
+hostname or an untrusted chain get a badge regardless of their date-based
+color, since an improperly signed cert is a problem even if the dates look
+fine.
+
+| Dark | Light |
+|---|---|
+| ![Dashboard, dark theme](screenshots/dark.png) | ![Dashboard, light theme](screenshots/light.png) |
+
+The magnifying-glass button reveals a live filter that narrows the list as
+you type and stays in the URL (`?filter=...`), so a filtered view survives
+a reload or a shared link:
+
+![Filtering the dashboard for "example.com"](screenshots/filter.png)
+
 ## Usage
 
 ```
